@@ -557,10 +557,45 @@ int hidden_quad(int* grid, uint16_t* notes) {
     return changed;
 }
 
-int x_wing(int* grid, uint16_t* notes){
-    //todo¨
-    return 0;
+bool check_fb(int i, int*grid){
+    int row = i/9;
+    int col = i%9;
+    for(int j = 0; j<RSIZE; j++){
+        int index = row*9+j;
+        if(index != i && grid[index] == grid[i]) return false;
+    }
+    for(int j = 0; j<RSIZE; j++){
+        int index = j*9+col;
+        if(index != i && grid[index] == grid[i]) return false;
+    }
+    int x = row / 3;
+    int y = col / 3;
+    for(int a = 0; a<3; a++){
+        for(int b = 0; b<3; b++){
+            int index = 27*x + 3*y + 9*a + b;
+            if(index != i && grid[index] == grid[i]) return false;
+        }
+    }
+    return true;
 }
+
+bool fallback(int* grid) {
+    for(int i = 0; i < BSIZE; i++) {
+        if(grid[i] == 0) {
+            for(int digit = 1; digit < 10; digit++) {
+                grid[i] = digit;
+                if(check_fb(i, grid)) {
+                    if(fallback(grid)) return true;
+                }
+            }
+            grid[i] = 0;  
+            return false;
+        }
+    }
+    return true; 
+}
+
+
 
 bool notFull(int* grid){
     for(int i = 0; i<BSIZE; i++){
@@ -588,8 +623,9 @@ int* _solve(int* grid, uint16_t* grid_copy){
         hidden_triple(grid,grid_copy);
 
         
-        if(iter > 100){
-            //printf("iter bigger than 1000 -> break\n");
+        if(iter > 80){
+            printf("iter bigger than 1000 -> break\n");
+            fallback(grid);
             break;
         }
 	}
