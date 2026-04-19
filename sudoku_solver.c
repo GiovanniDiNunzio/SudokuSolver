@@ -91,7 +91,7 @@ int* read_sudoku(const char* path) {
     return board;
 }
 
-int clear(int index, int digit, uint16_t* grid_copy){
+int clear(int index, int digit, uint16_t* notes){
     uint16_t mask = ~(1u << (digit - 1));
     int row = index / 9;
     int col = index % 9;
@@ -99,13 +99,13 @@ int clear(int index, int digit, uint16_t* grid_copy){
     // Zeile
     for(int i = 0; i < 9; i++){
         int k = row*9 + i;
-        if(k != index) grid_copy[k] &= mask;
+        if(k != index) notes[k] &= mask;
     }
 
     // Spalte
     for(int i = 0; i < 9; i++){
         int k = i*9 + col;
-        if(k != index) grid_copy[k] &= mask;
+        if(k != index) notes[k] &= mask;
     }
 
     // Box
@@ -114,24 +114,24 @@ int clear(int index, int digit, uint16_t* grid_copy){
     for(int i = 0; i < 3; i++){
         for(int j = 0; j < 3; j++){
             int k = rfield*27 + cfield*3 + i*9 + j;
-            if(k != index) grid_copy[k] &= mask;
+            if(k != index) notes[k] &= mask;
         }
     }
 
     return 0;
 }
 
-int set_notes(int* grid, uint16_t* grid_copy){
+int set_notes(int* grid, uint16_t* notes){
 
     for(int i = 0; i<BSIZE; i++){
-        grid_copy[i] = 0x1FF;
+        notes[i] = 0x1FF;
     }
 
 	for(int i = 0; i<BSIZE; i++){
 		if(grid[i] != 0){
 
-            grid_copy[i] = 1 << (grid[i]-1); //set note
-			clear(i,grid[i], grid_copy); //clear all other interfering notes
+            notes[i] = 1 << (grid[i]-1); //set note
+			clear(i,grid[i], notes); //clear all other interfering notes
 
 		}
 	}
@@ -139,20 +139,20 @@ int set_notes(int* grid, uint16_t* grid_copy){
 }
 
 //ein Feld hat nur noch eine Zahl
-int naked_single(int* grid, uint16_t* grid_copy){
+int naked_single(int* grid, uint16_t* notes){
     int changed = 0;
     for(int i = 0; i<BSIZE; i++){
-        uint16_t v = grid_copy[i];
+        uint16_t v = notes[i];
         if(grid[i] == 0 && v != 0 && (v & (v -1)) == 0 ){
-            grid[i] = __builtin_ctz(grid_copy[i]) + 1;
-            clear(i,grid[i],grid_copy);
+            grid[i] = __builtin_ctz(notes[i]) + 1;
+            clear(i,grid[i],notes);
             changed = 1;
         }
     }
     return changed;
 }
 
-int hidden_single(int* grid, uint16_t* grid_copy){
+int hidden_single(int* grid, uint16_t* notes){
     int changed = 0;
     for(int digit = 0 ; digit < 9; digit++){
         uint16_t mask = 1 << digit;
@@ -161,15 +161,15 @@ int hidden_single(int* grid, uint16_t* grid_copy){
         for(int row = 0; row<9; row++){
             int count = 0; int target = -1;
             for(int col = 0; col<9; col++){
-                if(grid_copy[row*9+col] & mask){
+                if(notes[row*9+col] & mask){
                     count++;
                     target = row*9 + col;
                 }
             }
             if(count == 1 && grid[target] == 0){
                 grid[target] = digit + 1;
-                grid_copy[target] = mask;
-                clear(target, grid[target], grid_copy);
+                notes[target] = mask;
+                clear(target, grid[target], notes);
                 changed = 1;
             }
         }
@@ -178,15 +178,15 @@ int hidden_single(int* grid, uint16_t* grid_copy){
         for(int col = 0; col<9; col++){
             int count = 0; int target = -1;
             for(int row = 0; row<9;row++){
-                if(grid_copy[row*9+col] & mask){
+                if(notes[row*9+col] & mask){
                     count++;
                     target = row*9 + col;
                 }
             }
             if(count == 1 && grid[target] == 0){
                 grid[target] = digit + 1;
-                grid_copy[target] = mask;
-                clear(target, grid[target], grid_copy);
+                notes[target] = mask;
+                clear(target, grid[target], notes);
                 changed = 1;
             }
         }
@@ -198,7 +198,7 @@ int hidden_single(int* grid, uint16_t* grid_copy){
                 for(int i = 0; i<3; i++){
                     for(int j = 0; j<3; j++){
                         int index = x*27 + y*3 + i*9 + j;
-                        if(grid_copy[index] & mask){
+                        if(notes[index] & mask){
                             count++;
                             target = index;
                         }
@@ -206,8 +206,8 @@ int hidden_single(int* grid, uint16_t* grid_copy){
                 }
                 if(count == 1 && grid[target] == 0){
                     grid[target] = digit + 1;
-                    grid_copy[target] = mask;
-                    clear(target, grid[target], grid_copy);
+                    notes[target] = mask;
+                    clear(target, grid[target], notes);
                     changed = 1;
                 }
             }
@@ -220,20 +220,20 @@ int hidden_single(int* grid, uint16_t* grid_copy){
 
 }
 
-int naked_pair(int* grid, uint16_t* grid_copy){
+int naked_pair(int* grid, uint16_t* notes){
     int changed = 0;
     //rows
     for(int row = 0; row<RSIZE; row++){
         for(int col1 = 0; col1<CSIZE; col1++){
-            if(__builtin_popcount(grid_copy[row*RSIZE + col1]) == 2){
+            if(__builtin_popcount(notes[row*RSIZE + col1]) == 2){
                 for(int col2 = col1+1; col2<CSIZE; col2++){
-                    if(grid_copy[row*RSIZE + col2] == grid_copy[row*RSIZE + col1]){
+                    if(notes[row*RSIZE + col2] == notes[row*RSIZE + col1]){
                         //Naked Pair found -> clear row
                         for(int i = 0; i<RSIZE;i++){
                             if(i != col1 && i != col2){
-                                uint16_t old = grid_copy[row*RSIZE + i];
-                                grid_copy[row*RSIZE + i] &= ~(grid_copy[row*RSIZE + col1]);
-                                if (grid_copy[row*RSIZE + i] != old) changed = 1;
+                                uint16_t old = notes[row*RSIZE + i];
+                                notes[row*RSIZE + i] &= ~(notes[row*RSIZE + col1]);
+                                if (notes[row*RSIZE + i] != old) changed = 1;
                             }
                         }
                     }
@@ -245,13 +245,13 @@ int naked_pair(int* grid, uint16_t* grid_copy){
     //cols
     for(int col = 0; col<CSIZE; col++){
         for(int row1 = 0; row1<RSIZE; row1++){
-            if(__builtin_popcount(grid_copy[row1*RSIZE + col]) == 2){
+            if(__builtin_popcount(notes[row1*RSIZE + col]) == 2){
                 for(int row2 = row1+1; row2<RSIZE; row2++){
-                    if(grid_copy[row1*RSIZE + col] == grid_copy[row2*RSIZE + col]){
+                    if(notes[row1*RSIZE + col] == notes[row2*RSIZE + col]){
                         //Naked Pair found -> clear col
                         for(int i = 0; i<RSIZE;i++){
                             if(i != row1 && i != row2){
-                                grid_copy[i*RSIZE + col] &= ~(grid_copy[row1*RSIZE + col]);
+                                notes[i*RSIZE + col] &= ~(notes[row1*RSIZE + col]);
                                 changed = 1;
                             }
                         }
@@ -270,13 +270,13 @@ int naked_pair(int* grid, uint16_t* grid_copy){
                     idx[i*3+j] = x*27 + y*3 + i*9 + j;
 
             for (int a = 0; a < 9; a++) {
-                if (__builtin_popcount(grid_copy[idx[a]]) != 2) continue;
+                if (__builtin_popcount(notes[idx[a]]) != 2) continue;
                 for (int b = a+1; b < 9; b++) {
-                    if (grid_copy[idx[b]] != grid_copy[idx[a]]) continue;
-                    uint16_t mask = ~grid_copy[idx[a]];
+                    if (notes[idx[b]] != notes[idx[a]]) continue;
+                    uint16_t mask = ~notes[idx[a]];
                     for (int i = 0; i < 9; i++) {
                         if (i != a && i != b) {
-                            grid_copy[idx[i]] &= mask;
+                            notes[idx[i]] &= mask;
                             changed = 1;
                         }
                     }
@@ -606,21 +606,21 @@ bool notFull(int* grid){
     return false;
 }
 
-int* _solve(int* grid, uint16_t* grid_copy){
+int* _solve(int* grid, uint16_t* notes){
 	
-	set_notes(grid,grid_copy);
+	set_notes(grid,notes);
 
     int iter = 0;
 	while(notFull(grid)){
         iter++;
-        naked_single(grid,grid_copy);
-        hidden_single(grid,grid_copy);
+        naked_single(grid,notes);
+        hidden_single(grid,notes);
 
-        naked_pair(grid,grid_copy);
-        naked_triple(grid,grid_copy);
-        naked_quad(grid,grid_copy);
-        hidden_pair(grid,grid_copy);
-        hidden_triple(grid,grid_copy);
+        naked_pair(grid,notes);
+        naked_triple(grid,notes);
+        naked_quad(grid,notes);
+        hidden_pair(grid,notes);
+        hidden_triple(grid,notes);
 
         
         if(iter > 80){
@@ -658,12 +658,12 @@ int main(int argc, char *argv[]) {
     int *grid1 = read_sudoku(path);
     printf("Original:\n");
     pretty_print(grid1);
-    uint16_t* grid_copy1 = malloc(81 * sizeof(uint16_t));
-    _solve(grid1,grid_copy1);
+    uint16_t* notes1 = malloc(81 * sizeof(uint16_t));
+    _solve(grid1,notes1);
     int succ = check(grid1);
     pretty_print(grid1);
     free(grid1);
-    free(grid_copy1);
+    free(notes1);
 
     // timing
     long long total_ns = 0;
@@ -671,11 +671,11 @@ int main(int argc, char *argv[]) {
 
     int* grid_template = read_sudoku(path);
     int* grid = malloc(81 * sizeof(int));
-    uint16_t* grid_copy = malloc(81 * sizeof(uint16_t));    
+    uint16_t* notes = malloc(81 * sizeof(uint16_t));    
     for (int i = 0; i<n; i++) {
         memcpy(grid, grid_template, 81 * sizeof(int));
         clock_gettime(CLOCK_MONOTONIC, &start);
-        solver_ptr(grid,grid_copy); // actual solving
+        solver_ptr(grid,notes); // actual solving
         clock_gettime(CLOCK_MONOTONIC, &end);
         total_ns += ((end.tv_sec - start.tv_sec)*1000000000LL + end.tv_nsec - start.tv_nsec);
     }
@@ -688,7 +688,7 @@ int main(int argc, char *argv[]) {
     printf((succ ? "SUCCESS:TRUE\n" : "SUCCESS:FALSE\n"));
     printf("MEAN_TIME_NS: %lld\n", total_ns/n);
 
-    free(grid_copy);
+    free(notes);
     free(grid);
     return 0;
 }
