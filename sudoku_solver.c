@@ -11,6 +11,10 @@
 #define CSIZE 9
 #define BSIZE 81
 
+static int unit[27][9];
+
+
+
 int check(int* grid) {
     for (int digit = 1; digit <= 9; digit++) {
         // Zeilen
@@ -138,7 +142,6 @@ int set_notes(int* grid, uint16_t* notes){
     return 0;
 }
 
-//ein Feld hat nur noch eine Zahl
 int naked_single(int* grid, uint16_t* notes){
     int changed = 0;
     for(int i = 0; i<BSIZE; i++){
@@ -288,6 +291,53 @@ int naked_pair(int* grid, uint16_t* notes){
     return changed;
 }
 
+int hidden_pair(int* grid, uint16_t* notes) {
+    int changed = 0;
+
+    int units[27][9];
+    for (int r = 0; r < 9; r++)
+        for (int c = 0; c < 9; c++)
+            units[r][c] = r*9 + c;
+    for (int c = 0; c < 9; c++)
+        for (int r = 0; r < 9; r++)
+            units[9+c][r] = r*9 + c;
+    for (int b = 0; b < 9; b++) {
+        int frow = (b/3)*3, fcol = (b%3)*3;
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                units[18+b][i*3+j] = (frow+i)*9 + (fcol+j);
+    }
+
+    for (int u = 0; u < 27; u++) {
+        for (int d1 = 0; d1 < 9; d1++) {
+            uint16_t m1 = 1u << d1;
+            for (int d2 = d1+1; d2 < 9; d2++) {
+                uint16_t m2 = 1u << d2;
+                uint16_t pair = m1 | m2;
+
+                // Felder finden die d1 oder d2 enthalten
+                int count = 0, targets[2];
+                for (int k = 0; k < 9; k++) {
+                    if (notes[units[u][k]] & pair) {
+                        if (count < 2) targets[count] = units[u][k];
+                        count++;
+                    }
+                }
+
+                // Genau 2 Felder -> Hidden Pair
+                if (count == 2) {
+                    for (int t = 0; t < 2; t++) {
+                        uint16_t old = notes[targets[t]];
+                        notes[targets[t]] &= pair;
+                        if (notes[targets[t]] != old) changed = 1;
+                    }
+                }
+            }
+        }
+    }
+    return changed;
+}
+
 int naked_triple(int* grid, uint16_t* notes) {
     int changed = 0;
 
@@ -364,96 +414,6 @@ int naked_triple(int* grid, uint16_t* notes) {
     return changed;
 }
 
-int naked_quad(int* grid, uint16_t* notes) {
-    int changed = 0;
-
-    int units[27][9];
-    for (int r = 0; r < 9; r++)
-        for (int c = 0; c < 9; c++)
-            units[r][c] = r*9 + c;
-    for (int c = 0; c < 9; c++)
-        for (int r = 0; r < 9; r++)
-            units[9+c][r] = r*9 + c;
-    for (int b = 0; b < 9; b++) {
-        int frow = (b/3)*3, fcol = (b%3)*3;
-        for (int i = 0; i < 3; i++)
-            for (int j = 0; j < 3; j++)
-                units[18+b][i*3+j] = (frow+i)*9 + (fcol+j);
-    }
-
-    for (int u = 0; u < 27; u++) {
-        for (int a = 0; a < 9; a++) {
-            if (__builtin_popcount(notes[units[u][a]]) > 4) continue;
-            for (int b = a+1; b < 9; b++) {
-                if (__builtin_popcount(notes[units[u][b]]) > 4) continue;
-                for (int c = b+1; c < 9; c++) {
-                    if (__builtin_popcount(notes[units[u][c]]) > 4) continue;
-                    for (int d = c+1; d < 9; d++) {
-                        uint16_t uni = notes[units[u][a]] | notes[units[u][b]]
-                                     | notes[units[u][c]] | notes[units[u][d]];
-                        if (__builtin_popcount(uni) != 4) continue;
-                        uint16_t mask = ~uni;
-                        for (int i = 0; i < 9; i++) {
-                            if (i != a && i != b && i != c && i != d) {
-                                notes[units[u][i]] &= mask;
-                                changed = 1;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return changed;
-}
-
-int hidden_pair(int* grid, uint16_t* notes) {
-    int changed = 0;
-
-    int units[27][9];
-    for (int r = 0; r < 9; r++)
-        for (int c = 0; c < 9; c++)
-            units[r][c] = r*9 + c;
-    for (int c = 0; c < 9; c++)
-        for (int r = 0; r < 9; r++)
-            units[9+c][r] = r*9 + c;
-    for (int b = 0; b < 9; b++) {
-        int frow = (b/3)*3, fcol = (b%3)*3;
-        for (int i = 0; i < 3; i++)
-            for (int j = 0; j < 3; j++)
-                units[18+b][i*3+j] = (frow+i)*9 + (fcol+j);
-    }
-
-    for (int u = 0; u < 27; u++) {
-        for (int d1 = 0; d1 < 9; d1++) {
-            uint16_t m1 = 1u << d1;
-            for (int d2 = d1+1; d2 < 9; d2++) {
-                uint16_t m2 = 1u << d2;
-                uint16_t pair = m1 | m2;
-
-                // Felder finden die d1 oder d2 enthalten
-                int count = 0, targets[2];
-                for (int k = 0; k < 9; k++) {
-                    if (notes[units[u][k]] & pair) {
-                        if (count < 2) targets[count] = units[u][k];
-                        count++;
-                    }
-                }
-
-                // Genau 2 Felder -> Hidden Pair
-                if (count == 2) {
-                    for (int t = 0; t < 2; t++) {
-                        uint16_t old = notes[targets[t]];
-                        notes[targets[t]] &= pair;
-                        if (notes[targets[t]] != old) changed = 1;
-                    }
-                }
-            }
-        }
-    }
-    return changed;
-}
-
 int hidden_triple(int* grid, uint16_t* notes) {
     int changed = 0;
 
@@ -495,6 +455,49 @@ int hidden_triple(int* grid, uint16_t* notes) {
                             uint16_t old = notes[targets[t]];
                             notes[targets[t]] &= triple;
                             if (notes[targets[t]] != old) changed = 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return changed;
+}
+
+int naked_quad(int* grid, uint16_t* notes) {
+    int changed = 0;
+
+    int units[27][9];
+    for (int r = 0; r < 9; r++)
+        for (int c = 0; c < 9; c++)
+            units[r][c] = r*9 + c;
+    for (int c = 0; c < 9; c++)
+        for (int r = 0; r < 9; r++)
+            units[9+c][r] = r*9 + c;
+    for (int b = 0; b < 9; b++) {
+        int frow = (b/3)*3, fcol = (b%3)*3;
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                units[18+b][i*3+j] = (frow+i)*9 + (fcol+j);
+    }
+
+    for (int u = 0; u < 27; u++) {
+        for (int a = 0; a < 9; a++) {
+            if (__builtin_popcount(notes[units[u][a]]) > 4) continue;
+            for (int b = a+1; b < 9; b++) {
+                if (__builtin_popcount(notes[units[u][b]]) > 4) continue;
+                for (int c = b+1; c < 9; c++) {
+                    if (__builtin_popcount(notes[units[u][c]]) > 4) continue;
+                    for (int d = c+1; d < 9; d++) {
+                        uint16_t uni = notes[units[u][a]] | notes[units[u][b]]
+                                     | notes[units[u][c]] | notes[units[u][d]];
+                        if (__builtin_popcount(uni) != 4) continue;
+                        uint16_t mask = ~uni;
+                        for (int i = 0; i < 9; i++) {
+                            if (i != a && i != b && i != c && i != d) {
+                                notes[units[u][i]] &= mask;
+                                changed = 1;
+                            }
                         }
                     }
                 }
@@ -613,14 +616,12 @@ int* _solve(int* grid, uint16_t* notes){
     int iter = 0;
 	while(notFull(grid)){
         iter++;
-        naked_single(grid,notes);
-        hidden_single(grid,notes);
+        if(naked_single(grid,notes)) continue;
+        if(hidden_single(grid,notes)) continue;
 
-        naked_pair(grid,notes);
-        naked_triple(grid,notes);
-        naked_quad(grid,notes);
+        if(naked_pair(grid,notes))continue;
         hidden_pair(grid,notes);
-        hidden_triple(grid,notes);
+
 
         
         if(iter > 80){
