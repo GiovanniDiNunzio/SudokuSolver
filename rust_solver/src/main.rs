@@ -1,6 +1,7 @@
 
 use std::env;
 use std::fs;
+use std::time::Instant;
 
 
 
@@ -57,7 +58,7 @@ pub fn check(grid: &Vec<u8>, index: usize) -> bool{
     true
 }
 
-pub fn solve(mut grid: &mut Vec<u8>, free_field: &Vec<usize>, mut index: usize ) -> bool{
+pub fn solve(mut grid: &mut Vec<u8>, mut index: usize ) -> bool{
 
     
 
@@ -72,7 +73,7 @@ pub fn solve(mut grid: &mut Vec<u8>, free_field: &Vec<usize>, mut index: usize )
 
         if !check(&grid, index) { continue; };
 
-        if solve(&mut grid,&free_field, index+1){
+        if solve(&mut grid, index+1){
             return true;
         }
 
@@ -119,20 +120,18 @@ fn main() {
 
     pretty_print(&grid); //print unsolved
 
-
-
-    let mut free_field: Vec<usize> = Vec::new(); //get free fields
-    let mut index: usize = 0;
-    while index < 81 {
-        if grid[index] == 0{
-            free_field.push(index);
-        }
-        index += 1;
+    let n = 10;
+    let start = Instant::now();
+    for x in 0..n {
+        let index: usize = 0;
+        solve(&mut grid, index);
     }
-
-    index = 0;
-    solve(&mut grid, &free_field, index);
+    let total = start.elapsed();
+    let avg = total / n;
     println!("---------------------------------------------------------------------");
+    
+    println!("Zeit: {:?}", avg);
+    
     pretty_print(&grid);
 
 
