@@ -93,6 +93,8 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let file_path = &args[1]; //args 0 ist die datei
 
+
+    //This was done with AI
     let bytes = fs::read(file_path)
         .expect("Fehler beim Lesen der Datei.");
 
@@ -108,6 +110,7 @@ fn main() {
             }
         })
         .collect();
+    // From here no more AI
     
     if grid.len() != 81 {
         println!("Sudoku nicht richtig geprinted!");
